@@ -1,0 +1,78 @@
+import requests
+from bs4 import BeautifulSoup
+import json
+import re
+from datetime import datetime
+
+URL = "https://www.mju.ac.kr/mjukr/8595/subview.do"
+OUTPUT = "src/menuData.json"
+
+def fetch_menu():
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    res = requests.get(URL, headers=headers, timeout=15)
+    res.encoding = "utf-8"
+    soup = BeautifulSoup(res.text, "html.parser")
+
+    # 주차 라벨 추출 (예: 05.04 ~ 05.10)
+    week_label = ""
+    week_match = re.search(r"(\d{2}\.\d{2})\s*~\s*(\d{2}\.\d{2})", res.text)
+    if week_match:
+        week_label = f"{week_match.group(1)} ~ {week_match.group(2)}"
+
+    # 테이블에서 식단 파싱
+    table = soup.find("table")
+    if not table:
+        raise ValueError("식단 테이블을 찾을 수 없습니다.")
+
+    rows = table.find_all("tr")
+    days = []
+    current_day = None
+
+    for row in rows:
+        cells = row.find_all("td")
+        if len(cells) < 3:
+            continue
+
+        first = cells[0].get_text(strip=True)
+        meal_type = cells[1].get_text(strip=True) if len(cells) > 1 else ""
+        content_cell = cells[2] if len(cells) > 2 else None
+
+        # 날짜 행 감지 (예: "05.04 (월)")
+        date_match = re.search(r"(\d{2}\.\d{2})", first)
+        day_match = re.search(r"[월화수목금토일]", first)
+        if date_match:
+            current_day = {
+                "date": date_match.group(1),
+                "dayName": day_match.group(0) if day_match else "",
+                "meals": {"조식": None, "중식": None, "석식": None}
+            }
+            days.append(current_day)
+
+        # 식단 내용 파싱
+        if current_day and meal_type in ["조식", "중식", "석식"] and content_cell:
+            raw = content_cell.get_text(separator="\n", strip=True)
+            if "등록된 식단내용이" in raw or not raw or raw == "-":
+                current_day["meals"][meal_type] = None
+            else:
+                items = [
+                    s.strip() for s in re.split(r"[\n,]", raw)
+                    if s.strip() and s.strip() != "-"
+                ]
+                current_day["meals"][meal_type] = items if items else None
+
+    result = {
+        "weekLabel": week_label,
+        "updatedAt": datetime.now().strftime("%Y-%m-%d"),
+        "days": days
+    }
+
+    with open(OUTPUT, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+
+    print(f"✅ 식단 저장 완료: {week_label} ({len(days)}일)")
+    return result
+
+if __name__ == "__main__":
+    fetch_menu()
