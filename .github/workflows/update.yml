@@ -29,12 +29,12 @@ jobs:
         pip install requests beautifulsoup4
 
     - name: 식단 업데이트 파이썬 스크립트 실행!
-      run: python update_menu.py
+      run: python fetch_menu.py
 
     - name: 업데이트된 식단 파일(JSON) 깃허브에 자동 저장(Push)
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add src/menuData.json
+        git add menuData.json
         git commit -m "🍱 식단 데이터 자동 업데이트 완료" || echo "No changes to commit"
         git push
