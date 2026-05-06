@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 
 URL = "https://www.mju.ac.kr/mjukr/8595/subview.do"
-OUTPUT = "src/menuData.json"
+OUTPUT = "menuData.json"
 
 def fetch_menu():
     headers = {
